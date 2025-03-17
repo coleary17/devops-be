@@ -532,6 +532,53 @@ def grade_student():
         print(f"Error submitting grade: {str(e)}")
         return jsonify({'message': 'Error submitting grade'}), 500
 
+@app.route('/api/search', methods=['GET'])
+def search_courses():
+    keyword = request.args.get('keyword', '')
+    
+    # Vulnerability: string interpolation in SQL query
+    query = f"""
+    SELECT id, title, description, teacher_id 
+    FROM course 
+    WHERE title LIKE '%{keyword}%' OR description LIKE '%{keyword}%'
+    """
+    
+    conn = sqlite3.connect('instance/learning.db')
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(query)
+        
+        results = cursor.fetchall()
+        
+        courses = []
+        for row in results:
+            course = {
+                'id': row[0],
+                'title': row[1],
+                'description': row[2],
+                'teacher_id': row[3]
+            }
+            
+            teacher_query = f"SELECT username FROM user WHERE id = {course['teacher_id']}"
+            cursor.execute(teacher_query)
+            teacher = cursor.fetchone()
+            
+            if teacher:
+                course['teacher_name'] = teacher[0]
+            else:
+                course['teacher_name'] = 'Unknown'
+                
+            courses.append(course)
+            
+        return jsonify(courses)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+    finally:
+        cursor.close()
+        conn.close()
 
 if __name__ == '__main__':
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
